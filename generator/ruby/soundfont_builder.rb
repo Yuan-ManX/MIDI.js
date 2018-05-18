@@ -35,8 +35,9 @@ SOUNDFONT = "../sf2/redco/TR-808-Drums.SF2" # Soundfont file path
 # This script will generate MIDI.js-compatible instrument JS files for
 # all instruments in the below array. Add or remove as necessary.
 INSTRUMENTS = [
-  0     # Acoustic Grand Piano
+  0,     # Acoustic Grand Piano
 ];
+DRUMS = false
 # INSTRUMENTS = [
 #   0,     # Acoustic Grand Piano
 #   24,    # Acoustic Guitar (nylon)
@@ -105,6 +106,9 @@ VELOCITY = 85
 DURATION = Integer(3000)
 TEMP_FILE = "#{BUILD_DIR}/%s%stemp.midi"
 
+MIN_DRUM = 35
+MAX_DRUM = 81
+
 def deflate(string, level)
   z = Zlib::Deflate.new(level)
   dst = z.deflate(string, Zlib::FINISH)
@@ -134,15 +138,15 @@ MIDI_C0.upto(100) do |x|
   raise "Broken table" unless note_to_int(note[:key], note[:octave]) == x
 end
 
-def generate_midi(program, note_value, file)
+def generate_midi(channel, program, note_value, file)
   include MIDI
   seq = Sequence.new()
   track = Track.new(seq)
 
   seq.tracks << track
-  track.events << ProgramChange.new(0, Integer(program))
-  track.events << NoteOn.new(0, note_value, VELOCITY, 0) # channel, note, velocity, delta
-  track.events << NoteOff.new(0, note_value, VELOCITY, DURATION)
+  track.events << ProgramChange.new(channel, Integer(program))
+  track.events << NoteOn.new(channel, note_value, VELOCITY, 0) # channel, note, velocity, delta
+  track.events << NoteOff.new(channel, note_value, VELOCITY, DURATION)
 
   File.open(file, 'wb') { | file | seq.write(file) }
 end
@@ -182,25 +186,34 @@ def base64js(note, file, type)
   return output
 end
 
-def generate_audio(program)
+def generate_audio(channel, program)
   include MIDI
-  instrument = GM_PATCH_NAMES[program]
-  instrument_key = instrument.downcase.gsub(/[^a-z0-9 ]/, "").gsub(/\s+/, "_")
-
+  if channel == 9
+    instrument = "drums"
+    instrument_key = "percussion"
+    min_note = MIN_DRUM
+    max_note = MAX_DRUM
+  else
+    instrument = GM_PATCH_NAMES[program]
+    instrument_key = instrument.downcase.gsub(/[^a-z0-9 ]/, "").gsub(/\s+/, "_")
+    min_note = note_to_int("A", 0)
+    max_note = note_to_int("C", 8)
+  end
+  
   puts "Generating audio for: " + instrument + "(#{instrument_key})"
 
   mkdir_p "#{BUILD_DIR}/#{instrument_key}-mp3"
   ogg_js_file = open_js_file(instrument_key, "ogg")
   mp3_js_file = open_js_file(instrument_key, "mp3")
 
-  note_to_int("A", 0).upto(note_to_int("C", 8)) do |note_value|
+  min_note.upto(max_note) do |note_value|
     note = int_to_note(note_value)
     output_name = "#{note[:key]}#{note[:octave]}"
     output_path_prefix = BUILD_DIR + "/#{instrument_key}" + output_name
 
     puts "Generating: #{output_name}"
     temp_file_specific = TEMP_FILE % [output_name, instrument_key]
-    generate_midi(program, note_value, temp_file_specific)
+    generate_midi(channel, program, note_value, temp_file_specific)
     midi_to_audio(temp_file_specific, output_path_prefix + ".wav")
 
     puts "Updating JS files..."
@@ -225,4 +238,7 @@ def generate_audio(program)
 
 end
 
-Parallel.each(INSTRUMENTS, :in_processes=>10){|i| generate_audio(i)}
+Parallel.each(INSTRUMENTS, :in_processes=>10){|i| generate_audio(0, i)}
+if DRUMS
+  generate_audio(9, 0)
+end
