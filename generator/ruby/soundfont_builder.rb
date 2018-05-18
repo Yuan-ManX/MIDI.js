@@ -153,7 +153,7 @@ def run_command(cmd)
 end
 
 def midi_to_audio(source, target)
-  run_command "#{FLUIDSYNTH} -C no -R no -g 0.5 -F #{target} #{SOUNDFONT} #{source}"
+  run_command "#{FLUIDSYNTH} -C no -R no -g 1.0 -F #{target} #{SOUNDFONT} #{source}"
   run_command "#{OGGENC} -m 32 -M 128 #{target}"
   run_command "#{LAME} -v -b 8 -B 64 #{target}"
   rm target
