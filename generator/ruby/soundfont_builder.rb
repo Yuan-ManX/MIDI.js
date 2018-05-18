@@ -34,27 +34,8 @@ SOUNDFONT = "../sf2/redco/TR-808-Drums.SF2" # Soundfont file path
 
 # This script will generate MIDI.js-compatible instrument JS files for
 # all instruments in the below array. Add or remove as necessary.
-INSTRUMENTS = [
-  0,     # Acoustic Grand Piano
-];
-DRUMS = false
-# INSTRUMENTS = [
-#   0,     # Acoustic Grand Piano
-#   24,    # Acoustic Guitar (nylon)
-#   25,    # Acoustic Guitar (steel)
-#   26,    # Electric Guitar (jazz)
-#   30,    # Distortion Guitar
-#   33,    # Electric Bass (finger)
-#   34,    # Electric Bass (pick)
-#   56,    # Trumpet
-#   61,    # Brass Section
-#   64,    # Soprano Sax
-#   65,    # Alto Sax
-#   66,    # Tenor Sax
-#   67,    # Baritone Sax
-#   73,    # Flute
-#   118    # Synth Drum
-# ];
+INSTRUMENTS = 0.upto(127).to_a
+DRUMS = true
 
 # The encoders and tools are expected in your PATH. You can supply alternate
 # paths by changing the constants below.
