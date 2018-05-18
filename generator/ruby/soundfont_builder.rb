@@ -8,11 +8,11 @@
 #   FluidSynth
 #   Lame
 #   OggEnc (from vorbis-tools)
-#   Ruby Gem: midilib
+#   Ruby Gems: midilib, parallel
 #
 #   $ brew install --with-libsndfile fluidsynth
 #   $ brew install vorbis-tools lame
-#   $ gem install midilib
+#   $ gem install midilib parallel
 #
 # You'll need to download a GM soundbank to generate audio.
 #
@@ -26,6 +26,7 @@ require 'base64'
 require 'fileutils'
 require 'midilib'
 require 'zlib'
+require 'parallel'
 include FileUtils
 
 BUILD_DIR = "./soundfont" # Output path
@@ -102,7 +103,7 @@ NOTES = {
 MIDI_C0 = 12
 VELOCITY = 85
 DURATION = Integer(3000)
-TEMP_FILE = "#{BUILD_DIR}/temp.midi"
+TEMP_FILE = "#{BUILD_DIR}/%s%stemp.midi"
 
 def deflate(string, level)
   z = Zlib::Deflate.new(level)
@@ -175,7 +176,7 @@ def close_js_file(file)
 end
 
 def base64js(note, file, type)
-  output = '"' + note + '": ' 
+  output = '"' + note + '": '
   output += '"' + "data:audio/#{type};base64,"
   output += Base64.strict_encode64(File.read(file)) + '"'
   return output
@@ -195,11 +196,12 @@ def generate_audio(program)
   note_to_int("A", 0).upto(note_to_int("C", 8)) do |note_value|
     note = int_to_note(note_value)
     output_name = "#{note[:key]}#{note[:octave]}"
-    output_path_prefix = BUILD_DIR + "/" + output_name
+    output_path_prefix = BUILD_DIR + "/#{instrument_key}" + output_name
 
     puts "Generating: #{output_name}"
-    generate_midi(program, note_value, TEMP_FILE)
-    midi_to_audio(TEMP_FILE, output_path_prefix + ".wav")
+    temp_file_specific = TEMP_FILE % [output_name, instrument_key]
+    generate_midi(program, note_value, temp_file_specific)
+    midi_to_audio(temp_file_specific, output_path_prefix + ".wav")
 
     puts "Updating JS files..."
     ogg_js_file.write(base64js(output_name, output_path_prefix + ".ogg", "ogg") + ",\n")
@@ -207,7 +209,7 @@ def generate_audio(program)
 
     mv output_path_prefix + ".mp3", "#{BUILD_DIR}/#{instrument_key}-mp3"
     rm output_path_prefix + ".ogg"
-    rm TEMP_FILE
+    rm temp_file_specific
   end
 
   close_js_file(ogg_js_file)
@@ -223,4 +225,4 @@ def generate_audio(program)
 
 end
 
-INSTRUMENTS.each {|i| generate_audio(i)}
+Parallel.each(INSTRUMENTS, :in_processes=>10){|i| generate_audio(i)}
