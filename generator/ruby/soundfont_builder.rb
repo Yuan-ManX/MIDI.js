@@ -104,6 +104,7 @@ NOTES = {
 MIDI_C0 = 12
 VELOCITY = 85
 DURATION = Integer(3000)
+RELEASE = Integer(1000)
 TEMP_FILE = "#{BUILD_DIR}/%s%stemp.midi"
 
 MIN_DRUM = 35
@@ -147,6 +148,9 @@ def generate_midi(channel, program, note_value, file)
   track.events << ProgramChange.new(channel, Integer(program))
   track.events << NoteOn.new(channel, note_value, VELOCITY, 0) # channel, note, velocity, delta
   track.events << NoteOff.new(channel, note_value, VELOCITY, DURATION)
+  # Add extra events to force the note release to render.
+  track.events << NoteOn.new(channel, note_value, 0, RELEASE)
+  track.events << NoteOff.new(channel, note_value, 0, 0)
 
   File.open(file, 'wb') { | file | seq.write(file) }
 end
