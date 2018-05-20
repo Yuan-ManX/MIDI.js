@@ -143,8 +143,8 @@ def midi_to_audio(source, target)
   rm target
 end
 
-def open_js_file(instrument_key, type)
-  js_file = File.open("#{BUILD_DIR}/#{instrument_key}-#{type}.js", "w")
+def open_js_file(instrument_key)
+  js_file = File.open("#{BUILD_DIR}/#{instrument_key}.js", "w")
   js_file.write(
 """
 if (typeof(MIDI) === 'undefined') var MIDI = {};
@@ -182,12 +182,12 @@ def generate_audio(channel, program)
   
   puts "Generating audio for: " + instrument + "(#{instrument_key})"
 
-  mkdir_p "#{BUILD_DIR}/#{instrument_key}-mp3"
-  mp3_js_file = open_js_file(instrument_key, "mp3")
+  mkdir_p "#{BUILD_DIR}/#{instrument_key}"
+  mp3_js_file = open_js_file(instrument_key)
 
   min_note.upto(max_note) do |note_value|
     note = int_to_note(note_value)
-    output_name = "#{note[:key]}#{note[:octave]}"
+    output_name = "p#{note_value}"
     output_path_prefix = BUILD_DIR + "/#{instrument_key}" + output_name
 
     puts "Generating: #{output_name}"
@@ -198,14 +198,14 @@ def generate_audio(channel, program)
     puts "Updating JS files..."
     mp3_js_file.write(base64js(output_name, output_path_prefix + ".mp3", "mp3") + ",\n")
 
-    mv output_path_prefix + ".mp3", "#{BUILD_DIR}/#{instrument_key}-mp3"
+    mv output_path_prefix + ".mp3", "#{BUILD_DIR}/#{instrument_key}/#{output_name}" + ".mp3"
     rm temp_file_specific
   end
 
   close_js_file(mp3_js_file)
   
-  mp3_js_file = File.read("#{BUILD_DIR}/#{instrument_key}-mp3.js")
-  mjsz = File.open("#{BUILD_DIR}/#{instrument_key}-mp3.js.gz", "w")
+  mp3_js_file = File.read("#{BUILD_DIR}/#{instrument_key}.js")
+  mjsz = File.open("#{BUILD_DIR}/#{instrument_key}.js.gz", "w")
   mjsz.write(deflate(mp3_js_file, 9));
 
 end
