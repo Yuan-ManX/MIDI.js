@@ -80,7 +80,7 @@ NOTES = {
 }
 
 MIDI_C0 = 12
-VELOCITY = 85
+VELOCITIES = [85]
 DURATION = Integer(3000)
 RELEASE = Integer(1000)
 TEMP_FILE = "#{BUILD_DIR}/%s%stemp.midi"
@@ -117,17 +117,16 @@ MIDI_C0.upto(100) do |x|
   raise "Broken table" unless note_to_int(note[:key], note[:octave]) == x
 end
 
-def generate_midi(channel, program, note_value, file)
+def generate_midi(channel, program, note_value, velocity, file)
   seq = Sequence.new()
   track = Track.new(seq)
 
   seq.tracks << track
   track.events << ProgramChange.new(channel, Integer(program))
-  track.events << NoteOn.new(channel, note_value, VELOCITY, 0) # channel, note, velocity, delta
-  track.events << NoteOff.new(channel, note_value, VELOCITY, DURATION)
-  # Add extra events to force the note release to render.
+  track.events << NoteOn.new(channel, note_value, velocity, 0) # channel, note, velocity, delta
+  track.events << NoteOff.new(channel, note_value, velocity, DURATION)
+  # Add extra event to force the note release to render.
   track.events << NoteOn.new(channel, note_value, 0, RELEASE)
-  track.events << NoteOff.new(channel, note_value, 0, 0)
 
   File.open(file, 'wb') { | file | seq.write(file) }
 end
@@ -173,6 +172,10 @@ def write_json_file(instrument_key, min_note, max_note)
   "minPitch": #{min_note},
   "maxPitch": #{max_note},
 }))
+  if VELOCITIES.length > 1
+    velocities_str = VELOCITIES.map {|v| v.to_s}.join(", ")
+    json_file.write(". \"velocities\": [#{velocities_str}]")
+  end
   json_file.close
 end
 
@@ -195,20 +198,25 @@ def generate_audio(channel, program)
   mp3_js_file = open_js_file(instrument_key)
 
   min_note.upto(max_note) do |note_value|
-    note = int_to_note(note_value)
-    output_name = "p#{note_value}"
-    output_path_prefix = BUILD_DIR + "/#{instrument_key}" + output_name
+    VELOCITIES.each do |velocity|
+      note = int_to_note(note_value)
+      output_name = "p#{note_value}"
+      if velocities.length > 1
+        output_name << "_v#{velocity}"
+      end
+      output_path_prefix = BUILD_DIR + "/#{instrument_key}" + output_name
 
-    puts "Generating: #{output_name}"
-    temp_file_specific = TEMP_FILE % [output_name, instrument_key]
-    generate_midi(channel, program, note_value, temp_file_specific)
-    midi_to_audio(temp_file_specific, output_path_prefix + ".wav")
+      puts "Generating: #{output_name}"
+      temp_file_specific = TEMP_FILE % [output_name, instrument_key]
+      generate_midi(channel, program, note_value, velocity, temp_file_specific)
+      midi_to_audio(temp_file_specific, output_path_prefix + ".wav")
 
-    puts "Updating JS files..."
-    mp3_js_file.write(base64js(output_name, output_path_prefix + ".mp3", "mp3") + ",\n")
+      puts "Updating JS files..."
+      mp3_js_file.write(base64js(output_name, output_path_prefix + ".mp3", "mp3") + ",\n")
 
-    mv output_path_prefix + ".mp3", "#{BUILD_DIR}/#{instrument_key}/#{output_name}" + ".mp3"
-    rm temp_file_specific
+      mv output_path_prefix + ".mp3", "#{BUILD_DIR}/#{instrument_key}/#{output_name}" + ".mp3"
+      rm temp_file_specific
+    end
   end
 
   close_js_file(mp3_js_file)
