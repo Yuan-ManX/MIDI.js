@@ -83,7 +83,7 @@ MIDI_C0 = 12
 VELOCITIES = [85]
 DURATION = Integer(3000)
 RELEASE = Integer(1000)
-TEMP_FILE = "#{BUILD_DIR}/%s%stemp.midi"
+TEMP_FILE = "#{BUILD_DIR}/%s_%s_temp.midi"
 
 MIN_DRUM = 35
 MAX_DRUM = 81
@@ -138,7 +138,7 @@ end
 
 def midi_to_audio(source, target)
   run_command "#{FLUIDSYNTH} -C no -R no -g 1.0 -F #{target} #{SOUNDFONT} #{source}"
-  run_command "#{LAME} -v -b 8 -B 64 #{target}"
+  run_command "#{LAME} -v -b 8 -B 64 --replaygain-accurate #{target}"
   rm target
 end
 
@@ -167,15 +167,17 @@ end
 
 def write_json_file(instrument_key, min_note, max_note)
   json_file = File.open("#{BUILD_DIR}/#{instrument_key}/instrument.json", "w")
-  json_file.write(%Q({
+  json_file.write("{")
+  json_file.write(%Q(
   "name": "#{instrument_key}",
   "minPitch": #{min_note},
   "maxPitch": #{max_note},
-}))
+))
   if VELOCITIES.length > 1
     velocities_str = VELOCITIES.map {|v| v.to_s}.join(", ")
-    json_file.write(". \"velocities\": [#{velocities_str}]")
+    json_file.write("  \"velocities\": [#{velocities_str}]\n")
   end
+  json_file.write("}\n")
   json_file.close
 end
 
@@ -201,13 +203,13 @@ def generate_audio(channel, program)
     VELOCITIES.each do |velocity|
       note = int_to_note(note_value)
       output_name = "p#{note_value}"
-      if velocities.length > 1
+      if VELOCITIES.length > 1
         output_name << "_v#{velocity}"
       end
       output_path_prefix = BUILD_DIR + "/#{instrument_key}" + output_name
 
       puts "Generating: #{output_name}"
-      temp_file_specific = TEMP_FILE % [output_name, instrument_key]
+      temp_file_specific = TEMP_FILE % [instrument_key, output_name]
       generate_midi(channel, program, note_value, velocity, temp_file_specific)
       midi_to_audio(temp_file_specific, output_path_prefix + ".wav")
 
@@ -240,7 +242,7 @@ json_file.write("{\n")
 INSTRUMENTS.each do |i|
   instrument = GM_PATCH_NAMES[i]
   instrument_key = instrument.downcase.gsub(/[^a-z0-9 ]/, "").gsub(/\s+/, "_")
-  json_file.write("  \"#{i}\": \"instrument_key\",\n")
+  json_file.write("  \"#{i}\": \"#{instrument_key}\",\n")
 end
 if DRUMS
   json_file.write("  \"drums\": \"percussion\"\n")
