@@ -48,6 +48,9 @@ puts "Building the following instruments using font: " + SOUNDFONT
 INSTRUMENTS.each do |i|
   puts "    #{i}: " + MIDI::GM_PATCH_NAMES[i]
 end
+if DRUMS
+  puts "    drums: percussion"
+end
 
 puts
 puts "Using MP3 encoder: " + LAME
@@ -83,7 +86,7 @@ MIDI_C0 = 12
 VELOCITIES = [85]
 DURATION = Integer(3000)
 RELEASE = Integer(1000)
-TEMP_FILE = "#{BUILD_DIR}/%s_%s_temp.midi"
+TEMP_FILE = "#{BUILD_DIR}/%s_%s.midi"
 
 MIN_DRUM = 35
 MAX_DRUM = 81
@@ -172,6 +175,8 @@ def write_json_file(instrument_key, min_note, max_note)
   "name": "#{instrument_key}",
   "minPitch": #{min_note},
   "maxPitch": #{max_note},
+  "durationSeconds": #{DURATION / 1000.0},
+  "releaseSeconds": #{RELEASE / 1000.0},
 ))
   if VELOCITIES.length > 1
     velocities_str = VELOCITIES.map {|v| v.to_s}.join(", ")
@@ -206,7 +211,7 @@ def generate_audio(channel, program)
       if VELOCITIES.length > 1
         output_name << "_v#{velocity}"
       end
-      output_path_prefix = BUILD_DIR + "/#{instrument_key}" + output_name
+      output_path_prefix = BUILD_DIR + "/#{instrument_key}_#{output_name}"
 
       puts "Generating: #{output_name}"
       temp_file_specific = TEMP_FILE % [instrument_key, output_name]
