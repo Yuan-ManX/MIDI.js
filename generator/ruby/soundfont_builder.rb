@@ -27,6 +27,7 @@ require 'midilib'
 require 'zlib'
 require 'parallel'
 include FileUtils
+include MIDI
 
 BUILD_DIR = "./soundfont" # Output path
 SOUNDFONT = "../sf2/redco/TR-808-Drums.SF2" # Soundfont file path
@@ -117,7 +118,6 @@ MIDI_C0.upto(100) do |x|
 end
 
 def generate_midi(channel, program, note_value, file)
-  include MIDI
   seq = Sequence.new()
   track = Track.new(seq)
 
@@ -166,8 +166,17 @@ def base64js(note, file, type)
   return output
 end
 
+def write_json_file(instrument_key, min_note, max_note)
+  json_file = File.open("#{BUILD_DIR}/#{instrument_key}/instrument.json", "w")
+  json_file.write(%Q({
+  "name": "#{instrument_key}",
+  "minPitch": #{min_note},
+  "maxPitch": #{max_note},
+}))
+  json_file.close
+end
+
 def generate_audio(channel, program)
-  include MIDI
   if channel == 9
     instrument = "drums"
     instrument_key = "percussion"
@@ -207,6 +216,8 @@ def generate_audio(channel, program)
   mp3_js_file = File.read("#{BUILD_DIR}/#{instrument_key}.js")
   mjsz = File.open("#{BUILD_DIR}/#{instrument_key}.js.gz", "w")
   mjsz.write(deflate(mp3_js_file, 9));
+  
+  write_json_file(instrument_key, min_note, max_note)
 
 end
 
@@ -214,3 +225,17 @@ Parallel.each(INSTRUMENTS, :in_processes=>10){|i| generate_audio(0, i)}
 if DRUMS
   generate_audio(9, 0)
 end
+
+# Write a JSON file mapping program number to instrument name.
+json_file = File.open("#{BUILD_DIR}/soundfont.json", "w")
+json_file.write("{\n")
+INSTRUMENTS.each do |i|
+  instrument = GM_PATCH_NAMES[i]
+  instrument_key = instrument.downcase.gsub(/[^a-z0-9 ]/, "").gsub(/\s+/, "_")
+  json_file.write("  \"#{i}\": \"instrument_key\",\n")
+end
+if DRUMS
+  json_file.write("  \"drums\": \"percussion\"\n")
+end
+json_file.write("}\n")
+json_file.close
