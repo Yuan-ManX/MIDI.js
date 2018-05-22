@@ -92,6 +92,8 @@ TEMP_FILE = "#{BUILD_DIR}/%s_%s.midi"
 MIN_DRUM = 35
 MAX_DRUM = 81
 
+PERCUSSIVE_INSTRUMENTS = 8.upto(15).to_a + 112.upto(119).to_a
+
 def note_to_int(note, octave)
   value = NOTES[note]
   increment = MIDI_C0 + (octave * 12)
@@ -139,7 +141,7 @@ def midi_to_audio(source, target)
   rm target
 end
 
-def write_json_file(instrument_key, min_note, max_note)
+def write_json_file(instrument_key, min_note, max_note, percussive)
   json_file = File.open("#{BUILD_DIR}/#{instrument_key}/instrument.json", "w")
   json_file.write("{")
   json_file.write(%Q(
@@ -147,7 +149,8 @@ def write_json_file(instrument_key, min_note, max_note)
   "minPitch": #{min_note},
   "maxPitch": #{max_note},
   "durationSeconds": #{DURATION / 1000.0},
-  "releaseSeconds": #{RELEASE / 1000.0}))
+  "releaseSeconds": #{RELEASE / 1000.0},
+  "percussive": #{percussive ? "true" : "false"}))
   if VELOCITIES.length > 1
     velocities_str = VELOCITIES.map {|v| v.to_s}.join(", ")
     json_file.write(",\n")
@@ -163,11 +166,13 @@ def generate_audio(channel, program)
     instrument_key = "percussion"
     min_note = MIN_DRUM
     max_note = MAX_DRUM
+    percussive = true
   else
     instrument = GM_PATCH_NAMES[program]
     instrument_key = instrument.downcase.gsub(/[^a-z0-9 ]/, "").gsub(/\s+/, "_")
     min_note = note_to_int("A", 0)
     max_note = note_to_int("C", 8)
+    percussive = PERCUSSIVE_INSTRUMENTS.include?(program)
   end
   
   puts "Generating audio for: " + instrument + "(#{instrument_key})"
@@ -193,7 +198,7 @@ def generate_audio(channel, program)
     end
   end
   
-  write_json_file(instrument_key, min_note, max_note)
+  write_json_file(instrument_key, min_note, max_note, percussive)
 
 end
 
