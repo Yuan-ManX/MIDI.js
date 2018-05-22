@@ -24,16 +24,17 @@
 require 'base64'
 require 'fileutils'
 require 'midilib'
-require 'zlib'
 require 'parallel'
 include FileUtils
 include MIDI
 
-BUILD_DIR = "./soundfont" # Output path
+NAME = "sgm_v85_piano_drums"
+
+BUILD_DIR = "./soundfonts/#{NAME}" # Output path
 SOUNDFONT = "../sf2/redco/TR-808-Drums.SF2" # Soundfont file path
 
-# This script will generate MIDI.js-compatible instrument JS files for
-# all instruments in the below array. Add or remove as necessary.
+# This script will generate MP3 files for all instruments in the below array.
+# Add or remove as necessary.
 INSTRUMENTS = 0.upto(127).to_a
 DRUMS = true
 
@@ -91,13 +92,6 @@ TEMP_FILE = "#{BUILD_DIR}/%s_%s.midi"
 MIN_DRUM = 35
 MAX_DRUM = 81
 
-def deflate(string, level)
-  z = Zlib::Deflate.new(level)
-  dst = z.deflate(string, Zlib::FINISH)
-  z.close
-  dst
-end
-
 def note_to_int(note, octave)
   value = NOTES[note]
   increment = MIDI_C0 + (octave * 12)
@@ -145,29 +139,6 @@ def midi_to_audio(source, target)
   rm target
 end
 
-def open_js_file(instrument_key)
-  js_file = File.open("#{BUILD_DIR}/#{instrument_key}.js", "w")
-  js_file.write(
-"""
-if (typeof(MIDI) === 'undefined') var MIDI = {};
-if (typeof(MIDI.Soundfont) === 'undefined') MIDI.Soundfont = {};
-MIDI.Soundfont.#{instrument_key} = {
-""")
-  return js_file
-end
-
-def close_js_file(file)
-  file.write("\n}\n")
-  file.close
-end
-
-def base64js(note, file, type)
-  output = '"' + note + '": '
-  output += '"' + "data:audio/#{type};base64,"
-  output += Base64.strict_encode64(File.read(file)) + '"'
-  return output
-end
-
 def write_json_file(instrument_key, min_note, max_note)
   json_file = File.open("#{BUILD_DIR}/#{instrument_key}/instrument.json", "w")
   json_file.write("{")
@@ -176,13 +147,13 @@ def write_json_file(instrument_key, min_note, max_note)
   "minPitch": #{min_note},
   "maxPitch": #{max_note},
   "durationSeconds": #{DURATION / 1000.0},
-  "releaseSeconds": #{RELEASE / 1000.0},
-))
+  "releaseSeconds": #{RELEASE / 1000.0}))
   if VELOCITIES.length > 1
     velocities_str = VELOCITIES.map {|v| v.to_s}.join(", ")
-    json_file.write("  \"velocities\": [#{velocities_str}]\n")
+    json_file.write(",\n")
+    json_file.write("  \"velocities\": [#{velocities_str}]")
   end
-  json_file.write("}\n")
+  json_file.write("\n}\n")
   json_file.close
 end
 
@@ -202,7 +173,6 @@ def generate_audio(channel, program)
   puts "Generating audio for: " + instrument + "(#{instrument_key})"
 
   mkdir_p "#{BUILD_DIR}/#{instrument_key}"
-  mp3_js_file = open_js_file(instrument_key)
 
   min_note.upto(max_note) do |note_value|
     VELOCITIES.each do |velocity|
@@ -218,19 +188,10 @@ def generate_audio(channel, program)
       generate_midi(channel, program, note_value, velocity, temp_file_specific)
       midi_to_audio(temp_file_specific, output_path_prefix + ".wav")
 
-      puts "Updating JS files..."
-      mp3_js_file.write(base64js(output_name, output_path_prefix + ".mp3", "mp3") + ",\n")
-
       mv output_path_prefix + ".mp3", "#{BUILD_DIR}/#{instrument_key}/#{output_name}" + ".mp3"
       rm temp_file_specific
     end
   end
-
-  close_js_file(mp3_js_file)
-  
-  mp3_js_file = File.read("#{BUILD_DIR}/#{instrument_key}.js")
-  mjsz = File.open("#{BUILD_DIR}/#{instrument_key}.js.gz", "w")
-  mjsz.write(deflate(mp3_js_file, 9));
   
   write_json_file(instrument_key, min_note, max_note)
 
@@ -244,13 +205,16 @@ end
 # Write a JSON file mapping program number to instrument name.
 json_file = File.open("#{BUILD_DIR}/soundfont.json", "w")
 json_file.write("{\n")
+json_file.write("  \"name\": \"#{NAME}\",\n")
+json_file.write("  \"instruments\": {\n")
 INSTRUMENTS.each do |i|
   instrument = GM_PATCH_NAMES[i]
   instrument_key = instrument.downcase.gsub(/[^a-z0-9 ]/, "").gsub(/\s+/, "_")
-  json_file.write("  \"#{i}\": \"#{instrument_key}\",\n")
+  json_file.write("    \"#{i}\": \"#{instrument_key}\",\n")
 end
 if DRUMS
-  json_file.write("  \"drums\": \"percussion\"\n")
+  json_file.write("    \"drums\": \"percussion\"\n")
 end
+json_file.write("  }\n")
 json_file.write("}\n")
 json_file.close
